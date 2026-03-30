@@ -1,7 +1,8 @@
 section .bss
 
     bufor_wejscie resb 64           ; miejsce na wczytany tekst
-    wynik         resq 1            ; miejsce w pamieci ram, przeznaczone dla liczby binarnej
+    wynik         resq 1            ; miejsce w pamieci ram, przeznaczone dla liczby
+    bufor_binarny resb 65           ; miejsce na wypisanie liczby binarnej
     bufor_wyjscie resb 32           ; miejsce na tekst, ktory zostanie wyswietlony
 
 section .text
@@ -45,11 +46,40 @@ main:
     lea r10, [wynik]                ; pobranie adresu zmiennej wynikowej z pamieci
     mov [r10], r8                   ; zapisuje w pamieci
 
+    
+    mov rax, [r10]                  ; pobieram wartosc z pamieci do rax
+    mov r11, 2                      ; dziele przez 2
+
+    lea rbx, [bufor_binarny]        ; rbx = wskaznik na bufor binarny
+    add rbx, 64                     ; koniec bufora binarnego
+    mov byte [rbx], 10              ; dodaje enter
+    mov r12, 1                      ; licznik odpowiadajacy za znaki juz zmienione
+
+.number_to_bin:
+
+    dec rbx                         ; cofam wskaznik w lewo przed zapisem cyfry --
+    mov rdx, 0                      ; ZAWSZE zeruje reszte (rdx) przed dzieleniem (div)
+    div r11                         ; rax / 2 (wynik idzie do rax, reszta do rdx)
+
+    add rdx, 48                     ; dodaje 48 - zamieniam spowrotem na kod ascii ('0' lub '1')
+    mov [rbx], dl                   ; zapisuje literke do bufora
+
+    inc r12                         ; zwiekszam licznik gotowych znakow ++
+    cmp rax, 0                      ; sprawdzam czy wszystkie elementy zostaly podzielone
+    jne .number_to_bin              ; if != 0 powtarzam
+
+.print_bin:
+    mov rax, 1                      ; wypisanie binarne
+    mov rdi, 1                      ; ekran
+    mov rsi, rbx                    ; adres poczatku tekstu binarnego
+    mov rdx, r12                    ; ilosc znakow wraz z enterem
+    syscall
+
 
     ; zadanie 5b
     
-    
-    mov rax, [r10]                  ; pobieram wartosc z pamieci do rax
+    lea r10, [wynik]                ; zapisuje adres w pamieci 
+    mov rax, [r10]                  ; pobieram wartosc z pamieci do rax!
     mov r11, 10                     ; dziele przez 10
 
     lea rbx, [bufor_wyjscie]        ; rbx = wskaznik na bufor do wypisania
@@ -70,15 +100,15 @@ main:
     cmp rax, 0                      ; sprawdzam czy wszystkie elementy zostaly podzielone
     jne .number_to_ascii            ; if != 0 powtarzam
 
-.print:
-    mov rax, 1                      ; wypisanie
+.print_dec:
+    mov rax, 1                      ; wypisanie dziesietne
     mov rdi, 1                      ; ekran
     mov rsi, rbx                    ; adres poczatku tekstu
     mov rdx, r10                    ; ilosc znakow wraz z enterem
     syscall
 
 .koniec:
-    mov rsp, rbp                    ; epilog funkcji
+    mov rsp, rbp                    ; epilog
     pop rbp
 
     mov rax, 60                     ; wyjscie z programu
