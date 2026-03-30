@@ -1,0 +1,102 @@
+     1                                  section .bss
+     2                                  
+     3 00000000 <res 40h>                   input_buffer  resb 64           ; miejsce na tekst wpisany przez uzytkownika
+     4 00000040 <res 40h>                   output_buffer resb 64           ; miejsce na gotowy wynik w szesnastkowym
+     5                                  
+     6                                  section .text
+     7                                  
+     8                                      global main
+     9                                  
+    10                                  main:
+    11 00000000 55                          push rbp                        ; prolog
+    12 00000001 4889E5                      mov rbp, rsp
+    13                                  
+    14 00000004 B800000000                  mov rax, 0                      ; odczytanie danych
+    15 00000009 BF00000000                  mov rdi, 0                      ; klawiatura
+    16 0000000E 488D3425[00000000]          lea rsi, [input_buffer]         ; adres bufora wejsciowego
+    17 00000016 BA40000000                  mov rdx, 64                     ; max liczba znakow
+    18 0000001B 0F05                        syscall
+    19                                  
+    20 0000001D 4883F800                    cmp rax, 0                      ; if rax = 0, koniec programu
+    21 00000021 0F8E92000000                jle .koniec
+    22                                  
+    23 00000027 488D3425[00000000]          lea rsi, [input_buffer]         ; rsi = wskaznik na pierwsza literke
+    24 0000002F 4889C1                      mov rcx, rax                    ; licznik, ile znakow wpisano
+    25 00000032 48FFC9                      dec rcx                         ; dec - decrement - by pozbyc sie znaku ENTERA
+    26                                  
+    27 00000035 B800000000                  mov rax, 0                      ; zeruje rax
+    28 0000003A BB0A000000                  mov rbx, 10                     ; mnoznik sys dziesietnego
+    29                                  
+    30                                  .loop:
+    31                                  
+    32 0000003F 4883F900                    cmp rcx, 0                      ; sprawdzenie, czy wszystkie znaki przerobione
+    33 00000043 741C                        je .convert_to_hex              ; tak == idziemy zamieniac na hex
+    34                                  
+    35 00000045 4C0FB60E                    movzx r9, byte [rsi]            ; pobieram 1 bajt zerujac reszte
+    36 00000049 4180F90A                    cmp r9b, 10                     ; sprawdzam czy to nie enter tak dla pewnosci
+    37 0000004D 7412                        je .convert_to_hex
+    38                                  
+    39 0000004F 4180E930                    sub r9b, 48                     ; 48 to kod zera!!! odjecie daje czysta cyfre
+    40                                  
+    41 00000053 48F7E3                      mul rbx                         ; rax = rax * 10 
+    42 00000056 4C01C8                      add rax, r9                     ; dodaje pobrana cyfre do calosci
+    43                                  
+    44 00000059 48FFC6                      inc rsi                         ; kolejna literka, inkrementuje ++
+    45 0000005C 48FFC9                      dec rcx                         ; zmniejszam licznik pozostalych liter --
+    46 0000005F EBDE                        jmp .loop                       ; wracam
+    47                                  
+    48                                  .convert_to_hex:
+    49                                  
+    50 00000061 488D3C25[40000000]          lea rdi, [output_buffer]        ; miejsce do zapisu wyniku
+    51 00000069 4883C73E                    add rdi, 62                     ; ide na koniec bufora by pisac od tylu
+    52 0000006D C6070A                      mov byte [rdi], 10              ; enter na koniec
+    53 00000070 48FFCF                      dec rdi                         ; cofam wskaznik o 1 w lewo
+    54                                  
+    55 00000073 B910000000                  mov rcx, 16                     ; dzielnik, bo sys 16
+    56 00000078 41B800000000                mov r8, 0                       ; licznik dlugosci gotowego tekstu
+    57                                  
+    58                                  .hex_loop:
+    59                                  
+    60 0000007E BA00000000                  mov rdx, 0                      ; czyszcze przed dzieleniem
+    61 00000083 48F7F1                      div rcx                         ; rax = rax / 16, a do rdx wpada reszta z dzielenia!!!
+    62                                  
+    63                                      ; Sprawdzam, czy ta reszta to cyfra albo litera
+    64 00000086 80FA09                      cmp dl, 9
+    65 00000089 7F05                        jg .is_letter                   ; jg - skocz jesli wieksze od 9
+    66                                  
+    67                                  .is_digit:
+    68                                  
+    69 0000008B 80C230                      add dl, 48                      ; 48 to kod zera - zamiana na scii
+    70 0000008E EB03                        jmp .save_char
+    71                                  
+    72                                  .is_letter:
+    73                                  
+    74 00000090 80C237                      add dl, 55                      ; 55 to odleglosc by uzyskac litery od A do F w tabeli 
+    75                                  
+    76                                  .save_char:
+    77                                  
+    78 00000093 8817                        mov byte [rdi], dl              ; zapisuje wyliczony znak szesnastkowy
+    79 00000095 48FFCF                      dec rdi                         ; wskaznik w lewo --, wypisuje od konca
+    80 00000098 49FFC0                      inc r8                          ; zwiekszam licznik dlugosci tekstu ++
+    81                                  
+    82 0000009B 4883F800                    cmp rax, 0                      ; sprawdzam czy cos z liczby jeszcze zostalo
+    83 0000009F 75DD                        jne .hex_loop                   ; jak nie zero to krece sie dalej
+    84                                  
+    85                                  .print:
+    86                                  
+    87 000000A1 48FFC7                      inc rdi                         ; za duzo w lewo, inkrementuje by poprawic polozenie wskaznika
+    88 000000A4 49FFC0                      inc r8                          ; doliczam enter do dlugosci
+    89                                  
+    90 000000A7 B801000000                  mov rax, 1                      ; wypisanie
+    91 000000AC 4889FE                      mov rsi, rdi                    ; adres gotowego tekstu (zaczyna sie w rdi, nie na poczatku bufora)
+    92 000000AF BF01000000                  mov rdi, 1                      ; ekran
+    93 000000B4 4C89C2                      mov rdx, r8                     ; ile znaków wypisac
+    94 000000B7 0F05                        syscall
+    95                                  
+    96                                  .koniec:
+    97 000000B9 4889EC                      mov rsp, rbp                    ; epilog funkcji
+    98 000000BC 5D                          pop rbp
+    99                                  
+   100 000000BD B83C000000                  mov rax, 60                     ; wyjscie
+   101 000000C2 BF00000000                  mov rdi, 0                      ; sukces
+   102 000000C7 0F05                        syscall

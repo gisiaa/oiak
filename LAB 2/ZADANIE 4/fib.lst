@@ -1,0 +1,137 @@
+     1                                  READ_NR    equ 0    ; numer wywolania READ
+     2                                  WRITE_NR   equ 1    ; numer wywolania WRITE
+     3                                  EXIT_NR    equ 60   ; numer wywolania EXIT 
+     4                                  
+     5                                  STDIN      equ 0    ; wejscie - klawiatura
+     6                                  STDOUT     equ 1    ; wyjscie - ekran
+     7                                  
+     8                                  BUFOR_SIZE equ 10
+     9                                  BASE       equ 10
+    10                                  
+    11                                  ; ZMIENNE ZAINICJALIZOWANE
+    12                                  section .data
+    13 00000000 4669626F6E61636369-         outputBufor db "Fibonacci:                  ", 10
+    13 00000009 3A2020202020202020-
+    13 00000012 202020202020202020-
+    13 0000001B 200A               
+    14                                      outputBuforLen equ $ - outputBufor ;od obecnego adresu pamieci odejmuje adres poczatku i otrzymuje dlugosc bufora
+    15                                  
+    16                                  ; ZMIENNE NIEZAINICJALIZOWANE
+    17                                  section .bss
+    18 00000000 <res Ah>                    bufor resb BUFOR_SIZE ; miejsce na wpisywana liczbe
+    19                                  
+    20                                  section .text
+    21                                      global main
+    22                                  
+    23                                  main:
+    24 00000000 55                          push rbp ; zapisuje wskaznik na stosie
+    25 00000001 4889E5                      mov rbp, rsp ; nowy wskaznik
+    26                                  
+    27 00000004 E86B000000                  call processInputNumber ; wczytuje i parsuje z klaw, N -> rax
+    28                                      
+    29 00000009 4889C7                      mov rdi, rax ; przekazuje argument N do rdi dla wywolania funkcji
+    30 0000000C E82C000000                  call fibo ; oblicza N-ta liczbe, zwraca wynik -> rax
+    31                                  
+    32 00000011 E8AE000000                  call processOutputNumber ; konwertuje rax na tekst do bufora wyjsciowego
+    33                                  
+    34                                  .out:
+    35 00000016 B801000000                  mov rax, WRITE_NR ; WRITE
+    36 0000001B BF01000000                  mov rdi, STDOUT ; ekran
+    37 00000020 48BE-                       mov rsi, outputBufor ; adres tekstu do wypisania
+    37 00000022 [0000000000000000] 
+    38 0000002A BA1D000000                  mov rdx, outputBuforLen ; limit rozmiaru
+    39 0000002F 0F05                        syscall
+    40                                  
+    41 00000031 B83C000000                  mov rax, EXIT_NR ; EXIT
+    42 00000036 BF00000000                  mov rdi, 0 ; kod sukcesu
+    43 0000003B 0F05                        syscall
+    44                                  
+    45                                  fibo:
+    46 0000003D 55                          push rbp ; zapisuje wskaznik na stosie
+    47 0000003E 4889E5                      mov rbp, rsp ; nowy wskaznik
+    48                                      
+    49 00000041 53                          push rbx ; zachowuje nieulotny rejestr rbx na stosie
+    50 00000042 4154                        push r12 ; zachowuje nieulotny rejestr r12 na stosie
+    51                                  
+    52 00000044 4883FF02                    cmp rdi, 2 ; sprawdzam czy n < 2
+    53 00000048 7C1F                        jl .base_case ; skocz jesli mniejsze (dla 0 i 1 fib(n) = n)
+    54                                  
+    55                                  .recur:
+    56 0000004A 4889FB                      mov rbx, rdi ; zachowuje n w rbx na pozniej
+    57                                      
+    58 0000004D 48FFCF                      dec rdi ; zmniejszam o 1 (n - 1)
+    59 00000050 E8E8FFFFFF                  call fibo ; fibo(n-1)
+    60 00000055 4989C4                      mov r12, rax ; zachowuje wynik fibo(n-1) w r12
+    61                                  
+    62 00000058 4889DF                      mov rdi, rbx ; przywracam pierwotne n do rdi
+    63 0000005B 4883EF02                    sub rdi, 2 ; zmniejszam o 2 (n - 2)
+    64 0000005F E8D9FFFFFF                  call fibo ; fibo(n-2)
+    65                                  
+    66 00000064 4C01E0                      add rax, r12 ; fibo(n-2) + fibo(n-1)
+    67 00000067 EB03                        jmp .quit_fibo ; skok by pominac warunek bazowy
+    68                                  
+    69                                  .base_case:
+    70 00000069 4889F8                      mov rax, rdi ; wynik -> rax
+    71                                  
+    72                                  .quit_fibo:
+    73 0000006C 415C                        pop r12 ; przywracam zachowane rejestry w odwrotnej kolejnosci
+    74 0000006E 5B                          pop rbx
+    75                                      
+    76 0000006F 4889EC                      mov rsp, rbp ; cofam wskaznik do stanu pierwotnego
+    77 00000072 5D                          pop rbp
+    78 00000073 C3                          ret
+    79                                  
+    80                                  processInputNumber:
+    81 00000074 55                          push rbp 
+    82 00000075 4889E5                      mov rbp, rsp 
+    83                                  
+    84 00000078 B800000000                  mov rax, READ_NR ; READ
+    85 0000007D BF00000000                  mov rdi, STDIN ; klawiatura
+    86 00000082 48BE-                       mov rsi, bufor ; zapis do tablicy
+    86 00000084 [0000000000000000] 
+    87 0000008C BA0A000000                  mov rdx, BUFOR_SIZE ; limit rozmiaru
+    88 00000091 0F05                        syscall
+    89                                  
+    90 00000093 4831C0                      xor rax, rax ; 0 -> rax (czyszcze przed uzyciem)
+    91 00000096 4831FF                      xor rdi, rdi ; 0 -> rdi (czyszcze licznik)
+    92 00000099 4831C9                      xor rcx, rcx ; 0 -> rcx (czyszcze rejestr na bajt)
+    93 0000009C BB0A000000                  mov rbx, BASE ; 10 -> rbx (mnoznik)
+    94                                  
+    95                                  .L1:
+    96 000000A1 8A8F[00000000]              mov cl, byte [bufor + rdi] ; pobieram jeden znak do cl
+    97 000000A7 80F90A                      cmp cl, 10 ; sprawdzam czy enter
+    98 000000AA 7413                        je .L2 ; skocz jesli rowne
+    99 000000AC 80F900                      cmp cl, 0 ; sprawdzam czy koniec
+   100 000000AF 740E                        je .L2 ; skocz jesli rowne
+   101                                  
+   102 000000B1 80E930                      sub cl, '0' ; konwertuje kod znaku ascii na cyfre
+   103 000000B4 48F7E3                      mul rbx ; mnoze calosc przez baze (rax * 10)
+   104 000000B7 4801C8                      add rax, rcx ; dodaje nowa cyfre -> rax
+   105                                  
+   106 000000BA 48FFC7                      inc rdi ; j++
+   107 000000BD EBE2                        jmp .L1 ; powtarzam
+   108                                  
+   109                                  .L2:
+   110 000000BF 4889EC                      mov rsp, rbp ; cofam wskaznik
+   111 000000C2 5D                          pop rbp
+   112 000000C3 C3                          ret
+   113                                  
+   114                                  processOutputNumber:
+   115 000000C4 55                          push rbp
+   116 000000C5 4889E5                      mov rbp, rsp
+   117                                  
+   118 000000C8 BB0A000000                  mov rbx, BASE ; 10 -> rbx (dzielnik)
+   119 000000CD B91B000000                  mov rcx, outputBuforLen - 2 ; zaczynam od tylu, omijajac \n
+   120                                  
+   121                                  .L3:
+   122 000000D2 4831D2                      xor rdx, rdx ; zeruje rdx przed dzielem, reszta z div trafia tu
+   123 000000D5 48F7F3                      div rbx ; rax / 10 -> reszta do rdx
+   124 000000D8 80C230                      add dl, '0' ; konwertuje cyfre na kod ascii
+   125 000000DB 8891[00000000]              mov byte [outputBufor + rcx], dl ; zapisuje kod znaku pod adres wyjsciowy
+   126 000000E1 48FFC9                      dec rcx ; cofam o jedno miejsce w lewo
+   127 000000E4 4883F800                    cmp rax, 0 ; czy wynik dzielenia wynosi 0
+   128 000000E8 75E8                        jne .L3 ; skocz jesli nierowne powtarzam tak dlugo az sa jakies cyfry
+   129                                  
+   130 000000EA 4889EC                      mov rsp, rbp ; cofam wskaznik
+   131 000000ED 5D                          pop rbp
+   132 000000EE C3                          ret

@@ -1,0 +1,95 @@
+     1                                  extern printf
+     2                                  extern scanf
+     3                                  
+     4                                  ; zaimportowalam by uzywac printf oraz scanf z jezyka C
+     5                                  
+     6                                  ; rezerwowanie pamieci dla stalych liczb oraz lancucha znakow
+     7                                  ; DANE ZAINICJALIZOWANE
+     8                                  section .data
+     9 00000000 506F64616A20647769-         msg db "Podaj dwie liczby: ", 0
+     9 00000009 65206C69637A62793A-
+     9 00000012 2000               
+    10                                      ; msg - adres w pamieci
+    11                                      ; db - 8 bitow na znak
+    12                                      ; 0 - znak NULL, dla funkcji printf
+    13 00000014 256C6420256C6400            fmt1 db "%ld %ld", 0
+    14                                      ; %ld - long int - 64bitowe liczby calkowite
+    15                                  
+    16 0000001C 4E574428256C642C20-         fmt2 db "NWD(%ld, %ld) = %ld", 10, 0
+    16 00000025 256C6429203D20256C-
+    16 0000002E 640A00             
+    17                                      ; 10 - kod ASCII \n
+    18                                  
+    19                                  ; DANE NIEZAINICJALIZOWANE
+    20                                  section .bss
+    21                                      ; block started by symbol - miejsce zostanie przydzielone podczas uruchomienia programu i wypelnione zerami
+    22                                  
+    23 00000000 ????????????????            number1 resq 1 ; typ danych bss - rezerwuje 1 poczwórne słowo do przechowywania pierwszej liczby
+    24 00000008 ????????????????            number2 resq 1
+    25                                  
+    26                                  section .text
+    27                                      global main
+    28                                  
+    29                                  main:
+    30                                  
+    31 00000000 55                          push rbp ; wskaznik bazowy
+    32                                  
+    33 00000001 4889E5                      mov rbp, rsp ; kopiuje (mov) i ustawiam wskaznik bazowy na aktualny wierzcholek stosu (rsp)
+    34                                  
+    35 00000004 53                          push rbx
+    36 00000005 51                          push rcx ; wyrownanie stosu
+    37                                  
+    38                                      ; Wyswietlenie pytania o wartosci liczb
+    39                                  
+    40 00000006 48BF-                       mov rdi, msg ; pierwszy argument trafia do rejestru rdi - przekazuje adres msg
+    40 00000008 [0000000000000000] 
+    41 00000010 B800000000                  mov rax, 0 ; liczba rejestrow zmiennoprzecinkowych
+    42 00000015 E8(00000000)                call printf ; wywolanie funkcji printf
+    43                                  
+    44                                      ; Wczytanie liczb
+    45                                  
+    46 0000001A 48BF-                       mov rdi, fmt1 ; przekazuje do rdi adres %ld %ld
+    46 0000001C [1400000000000000] 
+    47 00000024 48BE-                       mov rsi, number1 ; przekazuje adres zmiennej number1, pod ktory scanf ma wpisac dane?
+    47 00000026 [0000000000000000] 
+    48 0000002E 48BA-                       mov rdx, number2 ; przekazuje adres zmiennej number2
+    48 00000030 [0800000000000000] 
+    49 00000038 B800000000                  mov rax, 0 ; brak wartosci zmiennoprzecinkowych - 0
+    50 0000003D E8(00000000)                call scanf ; wywolanie funkcji scanf
+    51                                  
+    52                                      ; ALGORYTM NWD
+    53                                  
+    54 00000042 488B0425[00000000]          mov rax, [number1] ; zabranie z adresu number1 wartosci, ktora sie tam znajduje
+    55 0000004A 488B1C25[08000000]          mov rbx, [number2]
+    56                                  
+    57                                      ; PETLA
+    58                                  
+    59                                  NWDloop:
+    60                                  
+    61 00000052 4883FB00                    cmp rbx, 0; cmp (compare) porownuje wartosc w rbx z 0 | while(b!=0) | robi to za pomoca odejmowania
+    62 00000056 7410                        je exit ; skocz jesli rowne, jesli rbx to 0 program idzie do exit
+    63                                  
+    64 00000058 BA00000000                  mov rdx, 0 ; zeruje liczbe, by przy dzieleniu uniknac bledu spowodowanego losowymi liczbami, ktore moga sie znajdowac w tym rejestrze
+    65 0000005D 48F7FB                      idiv rbx ; dziele rejest rdx:rax przez rbx, wynik trafia do rejestru rax, a reszta z dzielenia (mod) trafia do rdx
+    66 00000060 4889D8                      mov rax, rbx ; a = pom - kopiuje b z rej rbx do 'a' (rax)
+    67 00000063 4889D3                      mov rbx, rdx ; b = a % b - kopiuje reszte z dzielnia z rdx do b
+    68 00000066 EBEA                        jmp NWDloop ; skok do poczatku petli
+    69                                  
+    70                                  ; WYPISANIE WYNIKU
+    71                                  
+    72                                  exit: ; wynik znajduje sie w rej rax
+    73                                  
+    74 00000068 48BF-                       mov rdi, fmt2 ; adres z formatem wypisania
+    74 0000006A [1C00000000000000] 
+    75 00000072 488B3425[00000000]          mov rsi, [number1] ; pobieram z pamieci pierwszej wpisanej wartosci
+    76 0000007A 488B1425[08000000]          mov rdx, [number2] ; pobieram z pamieci drugiej wpisanej wartosci
+    77 00000082 4889C1                      mov rcx, rax ; przenosze wynik NWD z rax do rcx
+    78 00000085 B800000000                  mov rax, 0 ; prtinf wymaga ilu rejestrow xmm (zmiennoprzecinkowych liczb) bede uzywac - w tym przypadku 0
+    79 0000008A E8(00000000)                call printf
+    80                                  
+    81 0000008F 59                          pop rcx ;  zdejmuje pusty rejestr
+    82 00000090 5B                          pop rbx ; 
+    83 00000091 4889EC                      mov rsp, rbp ; przywracam wskaznik stosu, bo inaczej pobierze ze stosu losowe liczby
+    84 00000094 5D                          pop rbp ; zdejmuje liczby ze stosu
+    85 00000095 B800000000                  mov rax, 0 ; kod wyjscia - sukces
+    86 0000009A C3                          ret

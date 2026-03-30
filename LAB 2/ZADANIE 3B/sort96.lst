@@ -1,0 +1,118 @@
+     1                                  READ_NR equ 0 ; numer wywolania READ
+     2                                  WRITE_NR equ 1 ; numer wywolania WRITE
+     3                                  
+     4                                  STDIN equ 0 ; wejscie - klawiatura
+     5                                  STDOUT equ 1 ; weyjscie - ekran
+     6                                  
+     7                                  MAX_NUMBERS equ 1024*1024*16
+     8                                  BYTES_PER_NUMBER equ 12 ; 96 bitow -> 12 bajtow
+     9                                  MAX_BYTES equ MAX_NUMBERS * BYTES_PER_NUMBER
+    10                                  
+    11                                  ; ZMIENNE NIEZAINICJALIZOWANE - miejsce zarezerwowane wypelnione zerami
+    12                                  section .bss
+    13 00000000 <res C000000h>              numbers resb MAX_BYTES ; tablica
+    14 0C000000 ????????????????            nBytes resq 1 ; 64 bity - poczworne slowo - licznik wczytanych bajtow
+    15 0C000008 ????????????????            nNumbers resq 1 ; 64 bity - liczba elementow (N)
+    16                                  
+    17                                  ; ciag liczb do testow: zzzzzzzzzzzzaaaaaaaaaaaabbbbbbbbbbbbgggggggggggg
+    18                                  
+    19                                  section .text
+    20                                      global main
+    21                                  
+    22                                  main:
+    23 00000000 55                          push rbp ; zapisuje wskaznik na stosie
+    24 00000001 4889E5                      mov rbp, rsp ; nowy wskaznik
+    25                                  
+    26 00000004 B800000000                  mov rax, READ_NR ; READ
+    27 00000009 BF00000000                  mov rdi, STDIN ; klawiatura
+    28 0000000E 48BE-                       mov rsi, numbers ; zapis do tablicy
+    28 00000010 [0000000000000000] 
+    29 00000018 BA0000000C                  mov rdx, MAX_BYTES ; limit rozmiaru
+    30 0000001D 0F05                        syscall
+    31                                  
+    32 0000001F 48890425[0000000C]          mov [nBytes], rax ; rax - zapisuje liczbe wczytanych bajtow 
+    33 00000027 4883F801                    cmp rax, 1
+    34 0000002B 0F8C94000000                jl .noDataRead ; skocz, jesli mniejsze rax < 1
+    35                                  
+    36 00000031 BB0C000000                  mov rbx, BYTES_PER_NUMBER
+    37 00000036 4831D2                      xor rdx, rdx ; 
+    38 00000039 48F7F3                      div rbx
+    39                                  
+    40 0000003C 4883FA00                    cmp rdx, 0
+    41 00000040 0F8586000000                jne .wrongNumberOfBytes ; skocz jesli nie rowne
+    42                                  
+    43 00000046 48890425[0800000C]          mov [nNumbers], rax ; rax zawiera teraz wyliczone N 
+    44                                  
+    45 0000004E 4889C7                      mov rdi, rax ; rdi - granica N w petli 
+    46 00000051 48FFCF                      dec rdi ; zmniejszam granice o 1 dekrementujac
+    47 00000054 7E4A                        jle .writeResults ; skocz jesli mniejsze lub rowne 0
+    48                                  
+    49                                  .sortOuter:
+    50 00000056 BE00000000                  mov rsi, 0 ; j 
+    51 0000005B 488D1C25[00000000]          lea rbx, [numbers]
+    52                                  
+    53                                  .sortInner:
+    54                                  ; little-endian - najbardziej znaczace bajty i bity znaku sa zapisywane od tylu, pod wyzszym adresem
+    55 00000063 8B4308                      mov eax, dword [rbx + 8] ; kopiuje gorne 32 bity pierwszego elementu
+    56 00000066 3B4314                      cmp eax, dword [rbx + 12 + 8] ; porownuje z gornymi 32 bitami kolejnego elementu
+    57                                  
+    58 00000069 7C20                        jl .skipSwap ; skocz jesli mniejsze
+    59 0000006B 7F05                        jg .swap ; skocz jesli wieksze -> swapuje
+    60                                  
+    61 0000006D 488B03                      mov rax, qword [rbx] ; pobieram dolne dane (dolne 64bity)
+    62 00000070 7619                        jbe .skipSwap ; skocz jesli nizsze badz rowne, odnosi sie do cmp 
+    63                                  
+    64                                  .swap:
+    65                                  
+    66                                  ; najnizsza czesc - bity 0-31, 0
+    67                                  
+    68                                  ; xchg - exchange
+    69 00000072 8B03                        mov eax, dword [rbx] ; kopiuje 4 najnizsze bajty elementu A do eax 
+    70 00000074 87430C                      xchg eax, dword [rbx + 12] ; wymieniam zawartosc eax z najnizszymi 4 bajtami elementu B
+    71 00000077 8903                        mov dword [rbx], eax ; zapisuje wartosc z B w miejsce A
+    72                                  
+    73                                  ; srodkowa czesc - bity 32-63, 4
+    74                                  
+    75 00000079 8B4304                      mov eax, dword [rbx + 4] ; to samo, co powyzej
+    76 0000007C 874310                      xchg eax, dword [rbx + 12 + 4]
+    77 0000007F 894304                      mov dword [rbx + 4], eax
+    78                                  
+    79                                  ; najwyzsza czesc - bity 64-95, 8
+    80                                  ; tu znajduje sie msb - bit znaku
+    81                                  
+    82 00000082 8B4308                      mov eax, dword [rbx + 8]
+    83 00000085 874314                      xchg eax, dword [rbx + 12 + 8]
+    84 00000088 894308                      mov dword [rbx + 8], eax
+    85                                  
+    86                                  .skipSwap:
+    87                                  
+    88 0000008B 4883C30C                    add rbx, BYTES_PER_NUMBER ; przesuwam adres w pamieci, by wskazac kolejny element tab
+    89 0000008F 48FFC6                      inc rsi ; j++
+    90 00000092 4839FE                      cmp rsi, rdi ; porownuje j z granica przesuwania N-1
+    91 00000095 72CC                        jb .sortInner ; skocz jesli nizsze j < N - 1
+    92 00000097 48FFCF                      dec rdi ; dekrementuje by zmniejszyc zakres przeszukiwania omijajac ostatni posortowany juz element
+    93 0000009A 4883FF00                    cmp rdi, 0 ; sprawdzam czy cos jeszcze zostalo do posortowania
+    94 0000009E 7FB6                        jg .sortOuter ; powtarzam sortowanie
+    95                                  
+    96                                  .writeResults:
+    97 000000A0 B801000000                  mov rax, WRITE_NR
+    98 000000A5 BF01000000                  mov rdi, STDOUT ; deskryptor pliku wyjscie ekran
+    99 000000AA 48BE-                       mov rsi, numbers ; adres tablicy z posortowanymi liczbami
+    99 000000AC [0000000000000000] 
+   100 000000B4 488B1425[0000000C]          mov rdx, [nBytes] ; liczba bajtow do wypisania
+   101 000000BC 0F05                        syscall
+   102 000000BE B800000000                  mov rax, 0 ; kod sukcesu
+   103 000000C3 EB0E                        jmp .endProgram
+   104                                  
+   105                                  .noDataRead:
+   106 000000C5 B801000000                  mov rax, 1 ; kod bledu 1 -> rax
+   107 000000CA EB07                        jmp .endProgram
+   108                                  
+   109                                  .wrongNumberOfBytes:
+   110 000000CC B802000000                  mov rax, 2 ; kod bledu 2 -> rax
+   111 000000D1 EB00                        jmp .endProgram
+   112                                  
+   113                                  .endProgram:
+   114 000000D3 4889EC                      mov rsp, rbp ; cofam wskaznik do stanu pierwotnego
+   115 000000D6 5D                          pop rbp 
+   116 000000D7 C3                          ret
