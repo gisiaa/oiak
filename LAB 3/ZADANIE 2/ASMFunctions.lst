@@ -1,0 +1,50 @@
+     1                                  ; przeslanie funkcji z asemblera, by byly dostepne dla programu w c
+     2                                  section .text
+     3                                      global add
+     4                                      global substract
+     5                                      global multiply
+     6                                      global divide
+     7                                  
+     8                                  add:
+     9 00000000 55                          push rbp                                ; zabezpieczenie wskaznika na stosie przed nadpisaniem
+    10 00000001 4889E5                      mov  rbp, rsp                           ; wyrowanie stosu
+    11                                      
+    12 00000004 F2480F2ACF                  cvtsi2sd xmm1, rdi                      ; zamiana liczby calkowitej z rdi na podwojna precyzje zmiennoprzecinkowa w xmm1
+    13 00000009 F20F58C1                    addsd    xmm0, xmm1                     ; dodawanie rejestrow zmiennoprzecinkowych: xmm0 = xmm0 + xmm1
+    14                                      
+    15 0000000D 4889EC                      mov  rsp, rbp                           ; czyszcze ramke stosu
+    16 00000010 5D                          pop  rbp                                ; przywracam wskaznik stosu dla jezyka c
+    17 00000011 C3                          ret                                     ; wynik dodawania zwracam do rejestru xmm0
+    18                                  
+    19                                  substract:
+    20 00000012 55                          push rbp
+    21 00000013 4889E5                      mov  rbp, rsp
+    22                                      
+    23 00000016 F2480F2ACF                  cvtsi2sd xmm1, rdi
+    24 0000001B F20F5CC1                    subsd    xmm0, xmm1                     ; odejmuje rejestry zmiennoprzecinkowe: xmm0 = xmm0 - xmm1
+    25                                      
+    26 0000001F 4889EC                      mov  rsp, rbp
+    27 00000022 5D                          pop  rbp
+    28 00000023 C3                          ret                                     ; wynik odejmowania trafia do rejestru xmm0
+    29                                  
+    30                                  multiply:
+    31 00000024 55                          push rbp
+    32 00000025 4889E5                      mov  rbp, rsp
+    33                                      
+    34 00000028 F2480F2ACF                  cvtsi2sd xmm1, rdi
+    35 0000002D F20F59C1                    mulsd    xmm0, xmm1                     ; mnozenie rejestrow zmiennoprzecinkowych: xmm0 = xmm0 * xmm1
+    36                                      
+    37 00000031 4889EC                      mov  rsp, rbp
+    38 00000034 5D                          pop  rbp
+    39 00000035 C3                          ret                                     ; wynik mnozenia trafia do xmm0
+    40                                  
+    41                                  divide:
+    42 00000036 55                          push rbp
+    43 00000037 4889E5                      mov  rbp, rsp
+    44                                      
+    45 0000003A F2480F2ACF                  cvtsi2sd xmm1, rdi                      ; dzielnik (liczba calkowita) zamieniam na zmiennoprzecinkowa w xmm1
+    46 0000003F F20F5EC1                    divsd    xmm0, xmm1                     ; dzielenie rejestrow zmiennoprzecinkowych: xmm0 = xmm0 / xmm1, wynik dzielenia trafia do xmm0
+    47                                      
+    48 00000043 4889EC                      mov  rsp, rbp                           ; przywracam stos do stanu sprzed prologu
+    49 00000046 5D                          pop  rbp                                ; przywracam wskaznik stosu
+    50 00000047 C3                          ret                                     ; zwracam wynik dzielenia w rejestrze xmm0

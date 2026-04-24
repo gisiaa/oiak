@@ -1,0 +1,20 @@
+     1                                  section .text
+     2                                      global dodaj_w_asm     ; eksportuje funkcje, by byla widoczna dla kodu w C
+     3                                      extern zmienna_c       ; importuje zmienne
+     4                                      extern STALA_C
+     5                                  
+     6                                  dodaj_w_asm:
+     7 00000000 55                          push rbp ; zabezpieczenie wskaznika na stosie przed nadpisaniem
+     8 00000001 4889E5                      mov rbp, rsp ; wyrowanie stosu
+     9                                  
+    10                                      ; wczytuje wartosc zmiennej z C do rejestru eax, by moc ja przetwarzac w asemblerze
+    11                                      ; dword, poniewaz zmienna_c jest typu int, czyli 4 bajty (32 bity), a rejestr eax jest 32-bitowy, wiec wczytuje 4 bajty z pamieci do eax
+    12 00000004 8B0425[00000000]            mov eax, dword [zmienna_c] 
+    13                                      
+    14                                      ; dodaje do wartosci w rejestrze eax wartosc stala zdefiniowana w C, ktora jest przechowywana w pamieci pod adresem STALA_C, i zapisuje wynik z powrotem do rejestru eax
+    15 0000000B 030425[00000000]            add eax, dword [STALA_C]    
+    16                                      
+    17                                      ; zwraca wynik dodawania w rejestrze eax, bo rejestr eax jest uzywany do zwracania wartosci calkowitych (int)
+    18 00000012 4889EC                      mov rsp, rbp ; przywracam stos do stanu sprzed prologu
+    19 00000015 5D                          pop rbp ; przywracam wskaznik stosu
+    20 00000016 C3                          ret ; zwracam wynik dodawania w rejestrze eax

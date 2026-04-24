@@ -1,0 +1,53 @@
+     1                                  section .text
+     2                                      global start_timer
+     3                                      global stop_timer
+     4                                  
+     5                                  start_timer:
+     6 00000000 55                          push rbp
+     7 00000001 4889E5                      mov  rbp, rsp
+     8 00000004 53                          push rbx            ; cpuid zniszczy rbx, wiec go zapisujemy, by go odzyskac pozniej
+     9                                  
+    10                                      ; serializacja instrukcji przed pomiarem czasu, by zapewnic dokladnosc
+    11 00000005 B800000000                  mov  eax, 0         ; ustawiam eax na 0, by cpuid nie oczekiwal argumentow w rejestrach xmm, co mogloby znieksztalcic wynik pomiaru czasu
+    12 0000000A 0FA2                        cpuid               ; serializuje instrukcje przed pomiarem czasu, by upewnic sie, ze wynik z rdtsc nie zostanie znieksztalcony przez instrukcje wykonane przed pomiarem czasu
+    13                                      
+    14 0000000C 0F31                        rdtsc               ; odczyt licznika czasu do rejestru edx:rax, gdzie edx zawiera starsza czesc, a rax mlodsza czesc 64-bitowego wyniku
+    15                                  
+    16                                      ; 64-bitowe scalanie wyniku
+    17 0000000E 48C1E220                    shl  rdx, 32        ; przesuwam starsza czesc rdx o 32 bity w lewo, by zajela gorna polowe 64-bitowego wyniku
+    18 00000012 4809D0                      or   rax, rdx       ; lacze mlodsza czesc rax z przesunieta starsza czescia rdx, by otrzymac pelny 64-bitowy wynik w rax
+    19                                  
+    20 00000015 5B                          pop  rbx            ; odzyskuje rbx
+    21 00000016 4889EC                      mov  rsp, rbp       ; przywracam stos do stanu sprzed prologu
+    22 00000019 5D                          pop  rbp            ; przywracam wskaznik stosu
+    23 0000001A C3                          ret                 ; zwracam 64-bitowy wynik pomiaru czasu w rejestrze rax
+    24                                  
+    25                                  stop_timer:
+    26 0000001B 55                          push rbp            ; zabezpieczenie wskaznika na stosie przed nadpisaniem
+    27 0000001C 4889E5                      mov  rbp, rsp       ; wyrowanie stosu
+    28 0000001F 53                          push rbx            ; cpuid zniszczy rbx, wiec go zapisuje, by go odzyskac pozniej
+    29                                  
+    30 00000020 0F01F9                      rdtscp              ; odczyt licznika czasu do rejestru edx:rax, gdzie edx zawiera starsza czesc, a rax mlodsza czesc 64-bitowego wyniku, 
+    31                                                          ; dodatkowo rdtscp zapisuje do rcx numer rdzenia procesora, na ktorym jest wykonywany program
+    32                                      
+    33                                      ; zapisuje czas, by nie zostal nadpisany przez cpuid
+    34 00000023 4989D0                      mov  r8, rdx        ; r8 przechowuje starsza czesc 64-bitowego wyniku z rdtscp
+    35 00000026 4989C1                      mov  r9, rax        ; r9 przechowuje mlodsza czesc 64-bitowego wyniku z rdtscp
+    36                                  
+    37                                  
+    38                                      ; serializacja instrukcji po pomiarze czasu, by zapewnic dokladnosc
+    39 00000029 B800000000                  mov  eax, 0  ; ustawiam eax na 0, by cpuid nie oczekiwal argumentow w rejestrach xmm, co mogloby znieksztalcic wynik pomiaru czasu
+    40 0000002E 0FA2                        cpuid        ; serializuje instrukcje po pomiarze czasu, by upewnic sie, ze wynik z rdtscp nie zostanie znieksztalcony przez dalsze instrukcje        
+    41                                  
+    42                                      ; odzyskuje czas z rejestrow r8 i r9, by przygotowac go do zwrocenia
+    43 00000030 4C89C8                      mov  rax, r9        ; rax przyjmuje mlodsza czesc 64-bitowego wyniku z rdtscp
+    44 00000033 4C89C2                      mov  rdx, r8        ; rdx przyjmuje starsza czesc 64-bitowego wyniku z rdtscp
+    45                                  
+    46                                      ; 64-bitowe scalanie wyniku
+    47 00000036 48C1E220                    shl  rdx, 32        ; przesuwam starsza czesc rdx o 32 bity w lewo, by zajela gorna polowe 64-bitowego wyniku
+    48 0000003A 4809D0                      or   rax, rdx       ; lacze mlodsza czesc rax z przesunieta starsza czescia rdx, by otrzymac pelny 64-bitowy wynik w rax
+    49                                  
+    50 0000003D 5B                          pop  rbx            ; odzyskuje rbx
+    51 0000003E 4889EC                      mov  rsp, rbp       ; przywracam stos do stanu sprzed prologu
+    52 00000041 5D                          pop  rbp            ; przywracam wskaznik stosu
+    53 00000042 C3                          ret                 ; zwracam 64-bitowy wynik pomiaru czasu w rejestrze rax
