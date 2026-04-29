@@ -5,6 +5,9 @@ section .data                                         ; dane zainicjalizowane
     msgC   db "Podaj liczbe calkowita: ", 0
     fmtC   db "%ld", 0                                ; ld oznacza wielka liczbe calkowita (long)
 
+    msgC2   db "Podaj liczbe calkowita2: ", 0
+    fmtC2   db "%ld", 0                                ; ld oznacza wielka liczbe calkowita (long)
+
     wynikD db "Wynik dodawania: %.2f", 10, 0         ; 10 to enter, 0 to koniec
     wynikO db "Wynik odejmowania: %.2f", 10, 0       ; formatowanie dwoch miejsc po przecinku - %.2f
     wynikM db "Wynik mnozenia: %.2f", 10, 0
@@ -13,6 +16,7 @@ section .data                                         ; dane zainicjalizowane
 section .bss                                ; pamiec niezainicjalizowana - zostanie przydzielona przez system podczas uruchomienia programu
     liczbaZ resq 1                          ; resq - poczworne slowo (64 bity) dla liczby zmiennoprzecinkowej
     liczbaC resq 1                          ; resq - poczworne slowo (64 bity) dla liczby calkowitej
+    liczbaC2 resq 1
 
 section .text
     global main                             ; rozpoczecie dzialania programu
@@ -47,9 +51,20 @@ main:
     mov  rax, 0                             ; nie uzywam liczb zmiennoprzecinkowych, wiec rax = 0
     call scanf                              ; wywolanie funkcji scanf
 
+    ; liczba calkowita2
+    mov  rdi, msgC2                          ; pytanie o liczbe calkowita, adres tekstu do rdi
+    mov  rax, 0                             ; brak liczb zmiennoprzecinkowych, wiec rax = 0
+    call printf                             ; wyswietlenie tekstu
+
+    mov  rdi, fmtC2                          ; adres formatu odczytu dla liczby calkowitej (long) do rdi
+    mov  rsi, liczbaC2                       ; kopiujem adres zmiennej liczbaC jako drugi argument do rsi, by scanf mogl zapisac tam odczytana liczbe
+    mov  rax, 0                             ; nie uzywam liczb zmiennoprzecinkowych, wiec rax = 0
+    call scanf                              ; wywolanie funkcji scanf
+
     ; dodawanie
     movsd xmm0, qword [liczbaZ]             ; qword -wczytanie 64 bitowej liczby (double) z pamieci pod adresem liczbaZ do rejestru xmm0, gdzie bedzie pierwszy argument dla funkcji dodawania (double)
     mov   rdi, qword [liczbaC]              ; pobieram z pamieci liczbe calkowita i wrzucam ja do rdi, gdzie bedzie drugi argument dla funkcji dodawania (long)
+    mov rsi, qword [liczbaC2]
     call  add                               ; funkcja zwroci ulamek w rejestrze xmm0
 
     mov   rdi, wynikD                       ; wrzucamy do rdi adres tekstu wynikowego dodawania

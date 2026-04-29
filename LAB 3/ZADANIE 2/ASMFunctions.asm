@@ -9,8 +9,10 @@ add:
     push rbp                                ; zabezpieczenie wskaznika na stosie przed nadpisaniem
     mov  rbp, rsp                           ; wyrowanie stosu
     
-    cvtsi2sd xmm1, rdi                      ; zamiana liczby calkowitej z rdi na podwojna precyzje zmiennoprzecinkowa w xmm1
-    addsd    xmm0, xmm1                     ; dodawanie rejestrow zmiennoprzecinkowych: xmm0 = xmm0 + xmm1
+    cvtsi2sd xmm2, rdi                      ; konwersja rdi long b do rejestru xmm2
+    addsd    xmm0, xmm2                     ; dodaje b do a: xmm0 = xmm0 + xmm2
+    addsd    xmm0, xmm1
+
     
     mov  rsp, rbp                           ; czyszcze ramke stosu
     pop  rbp                                ; przywracam wskaznik stosu dla jezyka c

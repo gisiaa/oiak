@@ -1,7 +1,7 @@
 #include <stdio.h>
 
-double add(double a, long b) {
-    return a + (double)b;
+double add(double a, long b, long c) {
+    return a + (double)b + (double)c;
 }
 
 double substract(double a, long b) {
