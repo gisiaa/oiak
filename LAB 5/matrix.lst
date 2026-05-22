@@ -1,0 +1,350 @@
+     1                                  section .data                                  ; dane
+     2                                      align 32                                   ; wyrownuje do 32 bajtow
+     3 00000000 000000000000F03F00-         matrixA     dq     1.,  3.,  5.,  7.       
+     3 00000009 000000000008400000-
+     3 00000012 000000001440000000-
+     3 0000001B 0000001C40         
+     4 00000020 000000000000224000-                     dq     9., 11., 13., 15.       
+     4 00000029 000000000026400000-
+     4 00000032 000000002A40000000-
+     4 0000003B 0000002E40         
+     5 00000040 000000000000314000-                     dq    17., 19., 21., 23.       
+     5 00000049 000000000033400000-
+     5 00000052 000000003540000000-
+     5 0000005B 0000003740         
+     6 00000060 000000000000394000-                     dq    25., 27., 29., 31.       
+     6 00000069 00000000003B400000-
+     6 00000072 000000003D40000000-
+     6 0000007B 0000003F40         
+     7                                  
+     8 00000080 000000000000004000-         matrixB     dq     2.,  4.,  6.,  8.       
+     8 00000089 000000000010400000-
+     8 00000092 000000001840000000-
+     8 0000009B 0000002040         
+     9 000000A0 000000000000244000-                     dq    10., 12., 14., 16.       
+     9 000000A9 000000000028400000-
+     9 000000B2 000000002C40000000-
+     9 000000BB 0000003040         
+    10 000000C0 000000000000324000-                     dq    18., 20., 22., 24.       
+    10 000000C9 000000000034400000-
+    10 000000D2 000000003640000000-
+    10 000000DB 0000003840         
+    11 000000E0 0000000000003A4000-                     dq    26., 28., 30., 32.       
+    11 000000E9 00000000003C400000-
+    11 000000F2 000000003E40000000-
+    11 000000FB 0000004040         
+    12                                  
+    13                                  section .bss                                   ; rezerwuje miejsce w pamieci
+    14                                      alignb 32                                  ; wyrownuje rezerwowane miejsce do 32 bajtow
+    15 00000000 <res 80h>                   matrixC_seq resq    16                     ; rezerwuje miejsce na wynik wersji skalarnej
+    16 00000080 <res 80h>                   matrixC_avx resq    16                     ; rezerwuje miejsce na wynik wersji AVX
+    17                                  
+    18                                  section .text                                  
+    19                                      global run_seq                             ; do uzycia w C
+    20                                      global run_avx                             
+    21                                      global compare_matrices                    
+    22                                  
+    23                                  
+    24                                  ; uint64_t run_seq(uint64_t loops)
+    25                                  ; funkcja uruchamia wersje skalarna i zwraca liczbe cykli procesora
+    26                                  run_seq:                                       ; wersja skalarna
+    27 00000000 55                          push rbp                                   ; zapisuje stare rbp na stosie
+    28 00000001 4889E5                      mov  rbp, rsp                              ; ustawiam rbp jako baze stosu
+    29 00000004 53                          push rbx                                   ; zabezpieczam rbx przed zmiana
+    30 00000005 4883EC28                    sub  rsp, 40                               ; rezerwuje miejsce na stosie (40 bajtow)
+    31                                  
+    32 00000009 48897DF0                    mov  [rbp-16], rdi                         ; zapisuje liczbe powtorzen
+    33                                  
+    34                                      ; zaczynam pomiar czasu
+    35 0000000D 31C0                        xor  eax, eax                              ; zeruje eax
+    36 0000000F 0FA2                        cpuid                                      ; porzadkuje instrukcje i pobieram informacje o CPU
+    37 00000011 0F31                        rdtsc                                      ; pobieram licznik cykli na starcie
+    38 00000013 48C1E220                    shl  rdx, 32                               ; przesuwam starsza czesc wyniku
+    39 00000017 4809D0                      or   rax, rdx                              ; skladam licznik cykli w calosc
+    40 0000001A 488945E8                    mov  [rbp-24], rax                         ; zapisuje czas startowy
+    41                                  
+    42                                      ; ustawiam argumenty dopiero po rdtsc, bo cpuid niszczy czesc rejestrow
+    43 0000001E 48BF-                       mov  rdi, matrixA                          ; ustawiam adres macierzy A
+    43 00000020 [0000000000000000] 
+    44 00000028 48BE-                       mov  rsi, matrixB                          ; ustawiam adres macierzy B
+    44 0000002A [8000000000000000] 
+    45 00000032 48BA-                       mov  rdx, matrixC_seq                      ; ustawiam adres wyniku skalarnego
+    45 00000034 [0000000000000000] 
+    46 0000003C 488B4DF0                    mov  rcx, [rbp-16]                         ; ustawiam licznik powtorzen
+    47                                  
+    48                                  .loop_seq:                                     ; zaczynam petle powtorzen wersji skalarnej
+    49                                      ; zabezpieczam argumenty, zeby kolejne powtorzenia zawsze mialy te same adresy
+    50 00000040 51                          push rcx                                   ; zapisuje licznik petli
+    51 00000041 52                          push rdx                                   ; zapisuje adres wyniku
+    52 00000042 56                          push rsi                                   ; zapisuje adres macierzy B
+    53 00000043 57                          push rdi                                   ; zapisuje adres macierzy A
+    54 00000044 E819010000                  call seq_multi4x4                          ; wywoluje wersje skalarna
+    55 00000049 5F                          pop  rdi                                   ; przywracam adres macierzy A
+    56 0000004A 5E                          pop  rsi                                   ; przywracam adres macierzy B
+    57 0000004B 5A                          pop  rdx                                   ; przywracam adres wyniku
+    58 0000004C 59                          pop  rcx                                   ; przywracam licznik petli
+    59                                  
+    60 0000004D 48FFC9                      dec  rcx                                   ; wykonuje ten krok programu
+    61 00000050 75EE                        jnz  .loop_seq                             ; wracam do petli jesli jeszcze nie koniec
+    62                                  
+    63                                      ; koncze pomiar czasu
+    64 00000052 0F01F9                      rdtscp                                     ; pobieram licznik cykli na koncu
+    65 00000055 48C1E220                    shl  rdx, 32                               ; przesuwam starsza czesc wyniku (shift left 32 bity w lewo)
+    66 00000059 4809D0                      or   rax, rdx                              ; skladam licznik cykli w calosc (mlodze bity z rax, starsze z rdx)
+    67 0000005C 488945E0                    mov  [rbp-32], rax                         ; zapisuje albo pobieram czas koncowy
+    68 00000060 31C0                        xor  eax, eax                              ; zeruje eax
+    69 00000062 0FA2                        cpuid                                      ; porzadkuje instrukcje i pobieram info o CPU
+    70                                  
+    71 00000064 488B45E0                    mov  rax, [rbp-32]                         ; zapisuje albo pobieram czas koncowy
+    72 00000068 482B45E8                    sub  rax, [rbp-24]                         ; licze roznice cykli
+    73                                  
+    74 0000006C 4883C428                    add  rsp, 40                               ; zwalniam miejsce na stosie
+    75 00000070 5B                          pop  rbx                                   ; przywracam rbx
+    76 00000071 5D                          pop  rbp                                   ; przywracam rbp
+    77 00000072 C3                          ret                                        ; wracam do funkcji wywolujacej
+    78                                  
+    79                                  
+    80                                  ; uint64_t run_avx(uint64_t loops)
+    81                                  ; funkcja uruchamia wersje AVX/FMA i zwraca liczbe cykli procesora
+    82                                  ; jezeli AVX/FMA nie jest obslugiwane, zwraca 0
+    83                                  run_avx:                                       ; zaczynam funkcje dla wersji AVX
+    84 00000073 55                          push rbp                                   ; zapisuje stare rbp na stosie
+    85 00000074 4889E5                      mov  rbp, rsp                              ; ustawiam rbp jako baze stosu
+    86 00000077 53                          push rbx                                   ; zabezpieczam rbx przed zmiana
+    87 00000078 4883EC28                    sub  rsp, 40                               ; rezerwuje miejsce na stosie
+    88                                  
+    89 0000007C 48897DF0                    mov  [rbp-16], rdi                         ; zapisuje liczbe powtorzen
+    90                                  
+    91 00000080 E8AB000000                  call check_avx_fma                         ; sprawdzam czy AVX/FMA jest dostepne
+    92 00000085 4883F800                    cmp  rax, 0                                ; sprawdzam wynik poprzedniej funkcji
+    93 00000089 7464                        je   .no_avx                               ; skacze jesli warunek jest spelniony
+    94                                  
+    95                                      ; zaczynam pomiar czasu
+    96 0000008B 31C0                        xor  eax, eax                              ; zeruje eax
+    97 0000008D 0FA2                        cpuid                                      ; porzadkuje instrukcje i pobieram info o CPU
+    98 0000008F 0F31                        rdtsc                                      ; pobieram licznik cykli na starcie
+    99 00000091 48C1E220                    shl  rdx, 32                               ; przesuwam starsza czesc wyniku
+   100 00000095 4809D0                      or   rax, rdx                              ; skladam licznik cykli w calosc
+   101 00000098 488945E8                    mov  [rbp-24], rax                         ; zapisuje czas startowy
+   102                                  
+   103                                      ; ustawiam argumenty dopiero po rdtsc, bo cpuid niszczy czesc rejestrow
+   104 0000009C 48BF-                       mov  rdi, matrixA                          ; ustawiam adres macierzy A
+   104 0000009E [0000000000000000] 
+   105 000000A6 48BE-                       mov  rsi, matrixB                          ; ustawiam adres macierzy B
+   105 000000A8 [8000000000000000] 
+   106 000000B0 48BA-                       mov  rdx, matrixC_avx                      ; ustawiam adres wyniku AVX
+   106 000000B2 [8000000000000000] 
+   107 000000BA 488B4DF0                    mov  rcx, [rbp-16]                         ; ustawiam licznik powtorzen
+   108                                  
+   109                                  .loop_avx:                                     ; zaczynam petle powtorzen wersji AVX
+   110                                      ; zabezpieczam argumenty, bo avx_multi4x4 przesuwa rsi podczas czytania macierzy B
+   111 000000BE 51                          push rcx                                   ; zapisuje licznik petli
+   112 000000BF 52                          push rdx                                   ; zapisuje adres wyniku
+   113 000000C0 56                          push rsi                                   ; zapisuje adres macierzy B
+   114 000000C1 57                          push rdi                                   ; zapisuje adres macierzy A
+   115 000000C2 E838010000                  call avx_multi4x4                          ; wywoluje wersje AVX
+   116 000000C7 5F                          pop  rdi                                   ; przywracam adres macierzy A
+   117 000000C8 5E                          pop  rsi                                   ; przywracam adres macierzy B
+   118 000000C9 5A                          pop  rdx                                   ; przywracam adres wyniku
+   119 000000CA 59                          pop  rcx                                   ; przywracam licznik petli
+   120                                  
+   121 000000CB 48FFC9                      dec  rcx                                   ; wykonuje ten krok programu
+   122 000000CE 75EE                        jnz  .loop_avx                             ; wracam do petli jesli jeszcze nie koniec
+   123                                  
+   124                                      ; koncze pomiar czasu
+   125 000000D0 0F01F9                      rdtscp                                     ; pobieram licznik cykli na koncu
+   126 000000D3 48C1E220                    shl  rdx, 32                               ; przesuwam starsza czesc wyniku
+   127 000000D7 4809D0                      or   rax, rdx                              ; skladam licznik cykli w calosc
+   128 000000DA 488945E0                    mov  [rbp-32], rax                         ; zapisuje albo pobieram czas koncowy
+   129 000000DE 31C0                        xor  eax, eax                              ; zeruje eax
+   130 000000E0 0FA2                        cpuid                                      ; porzadkuje instrukcje i pobieram info o CPU
+   131 000000E2 C5F877                      vzeroupper                                 ; czyszcze gorna czesc rejestrow AVX
+   132                                  
+   133 000000E5 488B45E0                    mov  rax, [rbp-32]                         ; zapisuje albo pobieram czas koncowy
+   134 000000E9 482B45E8                    sub  rax, [rbp-24]                         ; licze roznice cykli
+   135 000000ED EB03                        jmp  .done                                 ; przeskakuje do wskazanego fragmentu
+   136                                  
+   137                                  .no_avx:                                       ; trafiam tutaj gdy AVX/FMA nie dziala
+   138 000000EF 4831C0                      xor  rax, rax                              ; zeruje rax
+   139                                  
+   140                                  .done:                                         ; wspolne zakonczenie funkcji
+   141 000000F2 4883C428                    add  rsp, 40                               ; zwalniam miejsce na stosie
+   142 000000F6 5B                          pop  rbx                                   ; przywracam rbx
+   143 000000F7 5D                          pop  rbp                                   ; przywracam rbp
+   144 000000F8 C3                          ret                                        ; wracam do funkcji wywolujacej
+   145                                  
+   146                                  
+   147                                  ; int compare_matrices(void)
+   148                                  ; porownuje 16 elementow macierzy wynikowej
+   149                                  compare_matrices:                              ; zaczynam porownywanie macierzy
+   150 000000F9 48BF-                       mov  rdi, matrixC_seq                      ; ustawiam pierwsza macierz do porownania
+   150 000000FB [0000000000000000] 
+   151 00000103 48BE-                       mov  rsi, matrixC_avx                      ; ustawiam druga macierz do porownania
+   151 00000105 [8000000000000000] 
+   152 0000010D B910000000                  mov  rcx, 16                               ; ustawiam 16 elementow do sprawdzenia
+   153                                  
+   154                                  .loop_cmp:                                     ; zaczynam petle porownywania elementow
+   155 00000112 4C8B07                      mov  r8, [rdi]                             ; pobieram element z pierwszej macierzy
+   156 00000115 4C8B0E                      mov  r9, [rsi]                             ; pobieram element z drugiej macierzy
+   157                                  
+   158 00000118 4D39C8                      cmp  r8, r9                                ; porownuje dwa elementy
+   159 0000011B 7510                        jne  .not_equal                            ; skacze jesli wartosci sa rozne
+   160                                  
+   161 0000011D 4883C708                    add  rdi, 8                                ; przechodze do kolejnego elementu pierwszej macierzy
+   162 00000121 4883C608                    add  rsi, 8                                ; przechodze do kolejnego elementu drugiej macierzy
+   163 00000125 E2EB                        loop .loop_cmp                             ; zmniejszam rcx i wracam do petli
+   164                                  
+   165 00000127 B801000000                  mov  eax, 1                                ; zwracam 1 jako sukces
+   166 0000012C C3                          ret                                        ; wracam do funkcji wywolujacej
+   167                                  
+   168                                  .not_equal:                                    ; trafiam tutaj gdy macierze sa rozne
+   169 0000012D 31C0                        xor  eax, eax                              ; zeruje eax
+   170 0000012F C3                          ret                                        ; wracam do funkcji wywolujacej
+   171                                  
+   172                                  
+   173                                  ; sprawdzam AVX, FMA, OSXSAVE i stan XMM/YMM w XCR0
+   174                                  check_avx_fma:                                 ; zaczynam sprawdzanie AVX i FMA
+   175 00000130 53                          push rbx                                   ; zabezpieczam rbx przed zmiana
+   176                                  
+   177 00000131 B801000000                  mov  eax, 1                                ; zwracam 1 jako sukces
+   178 00000136 0FA2                        cpuid                                      ; porzadkuje instrukcje i pobieram info o CPU
+   179                                  
+   180 00000138 0FBAE11B                    bt   ecx, 27                               ; sprawdzam bit OSXSAVE
+   181 0000013C 7320                        jnc  .no                                   ; skacze jesli bit nie byl ustawiony
+   182                                  
+   183 0000013E 0FBAE11C                    bt   ecx, 28                               ; sprawdzam bit AVX
+   184 00000142 731A                        jnc  .no                                   ; skacze jesli bit nie byl ustawiony
+   185                                  
+   186 00000144 0FBAE10C                    bt   ecx, 12                               ; sprawdzam bit FMA
+   187 00000148 7314                        jnc  .no                                   ; skacze jesli bit nie byl ustawiony
+   188                                  
+   189 0000014A 31C9                        xor  ecx, ecx                              ; zeruje ecx przed xgetbv
+   190 0000014C 0F01D0                      xgetbv                                     ; sprawdzam ustawienia systemu dla AVX
+   191 0000014F 83E006                      and  eax, 6                                ; zostawiam tylko bity XMM i YMM
+   192 00000152 83F806                      cmp  eax, 6                                ; sprawdzam czy XMM i YMM sa wlaczone
+   193 00000155 7507                        jne  .no                                   ; skacze jesli wartosci sa rozne
+   194                                  
+   195 00000157 B801000000                  mov  eax, 1                                ; zwracam 1 jako sukces
+   196 0000015C 5B                          pop  rbx                                   ; przywracam rbx
+   197 0000015D C3                          ret                                        ; wracam do funkcji wywolujacej
+   198                                  
+   199                                  .no:                                           ; trafiam tutaj gdy czegos brakuje
+   200 0000015E 31C0                        xor  eax, eax                              ; zeruje eax
+   201 00000160 5B                          pop  rbx                                   ; przywracam rbx
+   202 00000161 C3                          ret                                        ; wracam do funkcji wywolujacej
+   203                                  
+   204                                  
+   205                                  ; funkcja do wolnego mnozenia macierzy 4x4
+   206                                  ; wersja skalarna: operacje na pojedynczych elementach double
+   207                                  seq_multi4x4:                                  ; zaczynam skalarne mnozenie macierzy
+   208 00000162 55                          push rbp                                   ; zapisuje stare rbp na stosie
+   209 00000163 4889E5                      mov  rbp, rsp                              ; ustawiam rbp jako baze stosu
+   210                                  
+   211 00000166 41B800000000                mov  r8, 0                                 ; ustawiam i na 0
+   212                                  
+   213                                  .loop_i:                                       ; zaczynam petle po wierszach
+   214 0000016C 4983F804                    cmp  r8, 4                                 ; sprawdzam czy i doszlo do 4
+   215 00000170 0F8D87000000                jge  .done_seq                             ; skacze gdy licznik doszedl do konca
+   216                                  
+   217 00000176 41B900000000                mov  r9, 0                                 ; ustawiam j na 0
+   218                                  
+   219                                  .loop_j:                                       ; zaczynam petle po kolumnach
+   220 0000017C 4983F904                    cmp  r9, 4                                 ; sprawdzam czy j doszlo do 4
+   221 00000180 7D73                        jge  .next_i                               ; skacze gdy licznik doszedl do konca
+   222                                  
+   223 00000182 660FEFC0                    pxor xmm0, xmm0                            ; zeruje sume w xmm0
+   224 00000186 41BA00000000                mov  r10, 0                                ; ustawiam k na 0
+   225                                  
+   226                                  .loop_k:                                       ; zaczynam petle po k
+   227 0000018C 4983FA04                    cmp  r10, 4                                ; sprawdzam czy k doszlo do 4
+   228 00000190 7D43                        jge  .store_seq                            ; skacze gdy licznik doszedl do konca
+   229                                  
+   230                                      ; adres A[i][k]
+   231 00000192 4889F8                      mov  rax, rdi                              ; biore adres macierzy A
+   232 00000195 4D89C3                      mov  r11, r8                               ; kopiuje i do rejestru pomocniczego
+   233 00000198 4D6BDB20                    imul r11, 32                               ; licze przesuniecie wiersza
+   234 0000019C 4C01D8                      add  rax, r11                              ; dodaje przesuniecie do adresu
+   235 0000019F 4D89D3                      mov  r11, r10                              ; kopiuje k do rejestru pomocniczego
+   236 000001A2 49C1E303                    shl  r11, 3                                ; licze przesuniecie elementu double
+   237 000001A6 4C01D8                      add  rax, r11                              ; dodaje przesuniecie do adresu
+   238 000001A9 F20F1008                    movsd xmm1, qword [rax]                    ; wczytuje element z macierzy A
+   239                                  
+   240                                      ; adres B[k][j]
+   241 000001AD 4889F0                      mov  rax, rsi                              ; biore adres macierzy B
+   242 000001B0 4D89D3                      mov  r11, r10                              ; kopiuje k do rejestru pomocniczego
+   243 000001B3 4D6BDB20                    imul r11, 32                               ; licze przesuniecie wiersza
+   244 000001B7 4C01D8                      add  rax, r11                              ; dodaje przesuniecie do adresu
+   245 000001BA 4D89CB                      mov  r11, r9                               ; kopiuje j do rejestru pomocniczego
+   246 000001BD 49C1E303                    shl  r11, 3                                ; licze przesuniecie elementu double
+   247 000001C1 4C01D8                      add  rax, r11                              ; dodaje przesuniecie do adresu
+   248 000001C4 F20F1010                    movsd xmm2, qword [rax]                    ; wczytuje element z macierzy B
+   249                                  
+   250 000001C8 F20F59CA                    mulsd xmm1, xmm2                           ; mnoze dwa elementy
+   251 000001CC F20F58C1                    addsd xmm0, xmm1                           ; dodaje iloczyn do sumy
+   252                                  
+   253 000001D0 49FFC2                      inc  r10                                   ; zwiekszam k
+   254 000001D3 EBB7                        jmp  .loop_k                               ; przeskakuje do wskazanego fragmentu
+   255                                  
+   256                                  .store_seq:                                    ; zapisuje gotowy element macierzy C
+   257                                      ; adres C[i][j]
+   258 000001D5 4889D0                      mov  rax, rdx                              ; biore adres macierzy C
+   259 000001D8 4D89C3                      mov  r11, r8                               ; kopiuje i do rejestru pomocniczego
+   260 000001DB 4D6BDB20                    imul r11, 32                               ; licze przesuniecie wiersza
+   261 000001DF 4C01D8                      add  rax, r11                              ; dodaje przesuniecie do adresu
+   262 000001E2 4D89CB                      mov  r11, r9                               ; kopiuje j do rejestru pomocniczego
+   263 000001E5 49C1E303                    shl  r11, 3                                ; licze przesuniecie elementu double
+   264 000001E9 4C01D8                      add  rax, r11                              ; dodaje przesuniecie do adresu
+   265 000001EC F20F1100                    movsd qword [rax], xmm0                    ; zapisuje obliczony wynik do macierzy C
+   266                                  
+   267 000001F0 49FFC1                      inc  r9                                    ; zwiekszam j
+   268 000001F3 EB87                        jmp  .loop_j                               ; przeskakuje do wskazanego fragmentu
+   269                                  
+   270                                  .next_i:                                       ; przechodze do nastepnego wiersza
+   271 000001F5 49FFC0                      inc  r8                                    ; zwiekszam i
+   272 000001F8 E96FFFFFFF                  jmp  .loop_i                               ; przeskakuje do wskazanego fragmentu
+   273                                  
+   274                                  .done_seq:                                     ; koncze wersje skalarna
+   275 000001FD 5D                          pop  rbp                                   ; przywracam rbp
+   276 000001FE C3                          ret                                        ; wracam do funkcji wywolujacej
+   277                                  
+   278                                  
+   279                                  ; funkcja do wektorowego mnozenia macierzy 4x4
+   280                                  ; wersja AVX/FMA: jednoczesnie licze cale wiersze macierzy C
+   281                                  avx_multi4x4:                                  ; zaczynam wektorowe mnozenie macierzy
+   282 000001FF 55                          push rbp                                   ; zapisuje stare rbp na stosie
+   283 00000200 4889E5                      mov  rbp, rsp                              ; ustawiam rbp jako baze stosu
+   284                                  
+   285 00000203 4831C0                      xor  rax, rax                              ; zeruje rax
+   286 00000206 B904000000                  mov  rcx, 4                                ; ustawiam licznik na 4
+   287                                  
+   288 0000020B C4411D57E4                  vxorpd ymm12, ymm12, ymm12                 ; zeruje pierwszy wiersz wyniku
+   289 00000210 C4411557ED                  vxorpd ymm13, ymm13, ymm13                 ; zeruje drugi wiersz wyniku
+   290 00000215 C4410D57F6                  vxorpd ymm14, ymm14, ymm14                 ; zeruje trzeci wiersz wyniku
+   291 0000021A C4410557FF                  vxorpd ymm15, ymm15, ymm15                 ; zeruje czwarty wiersz wyniku
+   292                                  
+   293                                  .loop_avx_calc:                                ; zaczynam petle obliczen AVX
+   294 0000021F C5FD2806                    vmovapd ymm0, [rsi]                        ; wczytuje caly wiersz macierzy B
+   295                                  
+   296 00000223 C4E27D190C07                vbroadcastsd ymm1, [rdi+rax]               ; rozrzucam element z pierwszego wiersza A
+   297 00000229 C462F5B8E0                  vfmadd231pd ymm12, ymm1, ymm0              ; dodaje iloczyn do pierwszego wiersza C
+   298                                  
+   299 0000022E C4E27D194C0720              vbroadcastsd ymm1, [rdi+32+rax]            ; rozrzucam element z drugiego wiersza A
+   300 00000235 C462F5B8E8                  vfmadd231pd ymm13, ymm1, ymm0              ; dodaje iloczyn do drugiego wiersza C
+   301                                  
+   302 0000023A C4E27D194C0740              vbroadcastsd ymm1, [rdi+64+rax]            ; rozrzucam element z trzeciego wiersza A
+   303 00000241 C462F5B8F0                  vfmadd231pd ymm14, ymm1, ymm0              ; dodaje iloczyn do trzeciego wiersza C
+   304                                  
+   305 00000246 C4E27D194C0760              vbroadcastsd ymm1, [rdi+96+rax]            ; rozrzucam element z czwartego wiersza A
+   306 0000024D C462F5B8F8                  vfmadd231pd ymm15, ymm1, ymm0              ; dodaje iloczyn do czwartego wiersza C
+   307                                  
+   308 00000252 4883C008                    add  rax, 8                                ; przechodze do kolejnego elementu A
+   309 00000256 4883C620                    add  rsi, 32                               ; przechodze do kolejnego wiersza B
+   310 0000025A E2C3                        loop .loop_avx_calc                        ; zmniejszam rcx i wracam do petli
+   311                                  
+   312 0000025C C57D2922                    vmovapd [rdx], ymm12                       ; zapisuje pierwszy wiersz wyniku
+   313 00000260 C57D296A20                  vmovapd [rdx+32], ymm13                    ; zapisuje drugi wiersz wyniku
+   314 00000265 C57D297240                  vmovapd [rdx+64], ymm14                    ; zapisuje trzeci wiersz wyniku
+   315 0000026A C57D297A60                  vmovapd [rdx+96], ymm15                    ; zapisuje czwarty wiersz wyniku
+   316                                  
+   317 0000026F 5D                          pop  rbp                                   ; przywracam rbp
+   318 00000270 C3                          ret                                        ; wracam do funkcji wywolujacej

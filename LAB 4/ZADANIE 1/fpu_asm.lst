@@ -1,0 +1,110 @@
+     1                                  section .text
+     2                                      global get_fpu_control
+     3                                      global get_fpu_status
+     4                                      global set_fpu_rounding
+     5                                      global set_fpu_precision
+     6                                      global set_fpu_exceptions_mask
+     7                                      global clear_fpu_exceptions
+     8                                      global fpu_divide
+     9                                  
+    10                                  get_fpu_control: ; odczytuje Control Word, czyli ustawienia FPU
+    11 00000000 55                          push rbp                        ; baza ramki stosu, zabezpieczam stary wskaznik
+    12 00000001 4889E5                      mov  rbp, rsp                   ; ustawiam rbp jako baze ramki stosu
+    13 00000004 4883EC10                    sub  rsp, 16                    ; rezerwuje 16 bajtow na stosie, by zapisac tan control word
+    14                                  
+    15 00000008 D97DF8                      fnstcw [rbp-8]                  ; store FPU control word - zapisz Control Word FPU do pamięci - zgrywam slowo kontrolne do pamieci na stosie pod rbp-8
+    16 0000000B 4831C0                      xor  rax, rax                   ; zeruje rax, by upewnic sie, ze nie mam tu smieci, bo funkcja w C zwraca wynik przez rax, a ja chce zwrocic moj control word, ktory jest 16-bitowy, wiec reszta rax musi byc pusta
+    17 0000000E 668B45F8                    mov  ax, [rbp-8]                ; kopiuje slowo kontrolne do ax, by zwrocic je do funkcji w C
+    18                                  
+    19 00000012 C9                          leave                           ; sprzatam ramke stosu
+    20 00000013 C3                          ret                             ; wracam do programu w C
+    21                                  
+    22                                  get_fpu_status: ; odczytuje Status Word, czyli stan/wyjątki FPU
+    23 00000014 55                          push rbp                        ; baza ramki stosu, zabezpieczam stary wskaznik
+    24 00000015 4889E5                      mov  rbp, rsp                   ; ustawiam rbp jako baze ramki stosu
+    25                                  
+    26 00000018 4831C0                      xor  rax, rax                   ; zeruje caly rax
+    27 0000001B DFE0                        fnstsw ax                       ; wpisuje status FPU bezposrednio do rejestru ax - store FPU status word - zapisz Status Word FPU do ax
+    28                                  
+    29 0000001D 5D                          pop  rbp                        ; przywracam stary wskaznik
+    30 0000001E C3                          ret                             ; wracam do C
+    31                                  
+    32                                  ; tryb zaokraglania
+    33                                  set_fpu_rounding:
+    34 0000001F 55                          push rbp                        ; zapisuje wskaznik na stosie
+    35 00000020 4889E5                      mov  rbp, rsp                   ; ustawiam rbp jako baze ramki stosu
+    36 00000023 4883EC10                    sub  rsp, 16                    ; rezerwuje miejsce na stosie na moja zmienna
+    37                                  
+    38 00000027 D97DF8                      fnstcw [rbp-8]                  ; pobieram obecny stan slowa kontrolnego
+    39 0000002A 668B45F8                    mov  ax, [rbp-8]                ; kopiuje go do rejestru ax
+    40                                  
+    41 0000002E 6625FFF3                    and  ax, 0xF3FF                 ; zeruje bity 10 i 11 (te od zaokraglania)
+    42 00000032 6609F8                      or   ax, di                     ; wpisuje do ax nowa maske z rdi (konkretnie di)
+    43 00000035 668945F8                    mov  [rbp-8], ax                ; zapisuje moj nowy stan z powrotem na stos
+    44 00000039 D96DF8                      fldcw [rbp-8]                   ; i laduje gotowe ustawienia do FPU
+    45                                  
+    46 0000003C C9                          leave                           ; sprzatam ramke
+    47 0000003D C3                          ret                             ; koncze
+    48                                  
+    49                                  ; precyzja
+    50                                  set_fpu_precision:
+    51 0000003E 55                          push rbp                        ; zapisuje wskaznik na stosie
+    52 0000003F 4889E5                      mov  rbp, rsp                   ; ustawiam rbp jako baze ramki stosu
+    53 00000042 4883EC10                    sub  rsp, 16                    ; robie miejsce na stosie
+    54                                  
+    55 00000046 D97DF8                      fnstcw [rbp-8]                  ; odczytuje stary control word
+    56 00000049 668B45F8                    mov  ax, [rbp-8]                ; kopiuje do ax
+    57                                  
+    58 0000004D 6625FFFC                    and  ax, 0xFCFF                 ; bity 8 i 9 odpowiadaja za precyzje, wiec je czyszcze
+    59 00000051 6609F8                      or   ax, di                     ; wstawiam moja nowa precyzje z argumentu w rdi
+    60 00000054 668945F8                    mov  [rbp-8], ax                ; zapisuje na stos
+    61 00000058 D96DF8                      fldcw [rbp-8]                   ; wysylam nowe ustawienia precyzji do FPU
+    62                                  
+    63 0000005B C9                          leave                           ; sprzatam
+    64 0000005C C3                          ret                             ; koncze
+    65                                  
+    66                                  ; maskowanie wyjatkow
+    67                                  set_fpu_exceptions_mask:
+    68 0000005D 55                          push rbp                        ; zapisuje wskaznik na stosie
+    69 0000005E 4889E5                      mov  rbp, rsp                   ; ustawiam rbp jako baze ramki stosu
+    70 00000061 4883EC10                    sub  rsp, 16                    ; robie miejsce na zmienna
+    71                                  
+    72 00000065 D97DF8                      fnstcw [rbp-8]                  ; odczytuje slowo kontrolne
+    73 00000068 668B45F8                    mov  ax, [rbp-8]                ; kopiuje slowo kontrolne do ax
+    74                                  
+    75 0000006C 6683E0C0                    and  ax, 0xFFC0                 ; zeruje bity 0-5 (odpowiedzialne za maski wyjatkow)
+    76 00000070 6609F8                      or   ax, di                     ; wpisuje moja nowa maske wyjatkow
+    77 00000073 668945F8                    mov  [rbp-8], ax                ; odkladam na stos
+    78 00000077 D96DF8                      fldcw [rbp-8]                   ; wgrywam wszystko do koprocesora
+    79                                  
+    80 0000007A C9                          leave                           ; sprzatam
+    81 0000007B C3                          ret                             ; koncze
+    82                                  
+    83                                  ; czyszczenie wyjatkow
+    84                                  clear_fpu_exceptions:
+    85 0000007C 55                          push rbp                        ; zapisuje wskaznik na stosie, by go zabezpieczyc
+    86 0000007D 4889E5                      mov  rbp, rsp                   ; ustawiam rbp jako baze ramki stosu
+    87                                  
+    88 00000080 DBE2                        fnclex                          ; czyszcze wyjatki fpu
+    89                                  
+    90 00000082 5D                          pop  rbp                        ; przywracam stary wskaznik
+    91 00000083 C3                          ret                             ; wracam
+    92                                  
+    93                                  ; dzielenie dwoch liczb double przez x87 FPU
+    94                                  ; double fpu_divide(double a, double b)
+    95                                  fpu_divide:
+    96 00000084 55                          push rbp                        ; zapisuje wskaznik na stosie
+    97 00000085 4889E5                      mov  rbp, rsp                   ; ustawiam rbp jako baze ramki stosu
+    98 00000088 4883EC10                    sub  rsp, 16                    ; rezerwuje miejsce na dwie liczby double
+    99                                  
+   100 0000008C F20F1145F8                  movsd [rbp-8], xmm0             ; pierwszy argument double zapisuje na stosie jako licznik
+   101 00000091 F20F114DF0                  movsd [rbp-16], xmm1            ; drugi argument double zapisuje na stosie jako mianownik
+   102                                  
+   103 00000096 DD45F8                      fld  qword [rbp-8]              ; wrzucam licznik na stos FPU
+   104 00000099 DC75F0                      fdiv qword [rbp-16]             ; dziele ST(0) przez mianownik, czyli robie a / b
+   105                                  
+   106 0000009C DD5DF8                      fstp qword [rbp-8]              ; zapisuje wynik z FPU do pamieci i sciagam go ze stosu FPU
+   107 0000009F F20F1045F8                  movsd xmm0, [rbp-8]             ; wynik double zwracam do C przez xmm0
+   108                                  
+   109 000000A4 C9                          leave                           ; sprzatam ramke
+   110 000000A5 C3                          ret                             ; wracam
