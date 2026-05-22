@@ -233,10 +233,6 @@ int main() {
         }
 
         if (wybor == 1) {
-            // Przykladowe przedzialy:
-            // 0 do M_PI       -> calka z sinusa wynosi 2
-            // 0 do M_PI / 2   -> calka z sinusa wynosi 1
-            // 0 do 2 * M_PI   -> calka z sinusa wynosi 0
             a = 0.0;
             b = M_PI;
 
@@ -247,11 +243,6 @@ int main() {
             printf("Roznica: %.12f\n", fabs(wynik - 2.0));
 
         } else if (wybor == 2) {
-            // Przykladowe przedzialy:
-            // 0 do M_PI       -> calka z cosinusa wynosi 0
-            // 0 do M_PI / 2   -> calka z cosinusa wynosi 1
-            // 0 do 2 * M_PI   -> calka z cosinusa wynosi 0
-            //
 
             a = 0.0;
             b = M_PI;
